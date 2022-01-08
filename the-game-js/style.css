@@ -1,0 +1,19 @@
+html,
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: black;
+}
+
+canvas {
+    display: block;
+    background-color: black;
+}
+
+#terminal-8x8 {
+    display: none;
+}
+
+#dungeon-tile-32x32 {
+    display: none;
+}
