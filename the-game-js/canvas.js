@@ -3,12 +3,23 @@ import './style.css';
 // Graphics Canvas ------------------------------------------------------------
 //
 
-var canvas = document.querySelector('#the-game-canvas');
-var resizeCanvas = () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+const canvasCfg = {
+    windowFull: false,
+    windowDim: {
+        height: 512,
+        width: 1024,
+    },
 };
-
+const canvas = document.querySelector('#the-game-canvas');
+const resizeCanvas = () => {
+    if (canvasCfg.windowFull) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    } else {
+        canvas.width = canvasCfg.windowDim.width;
+        canvas.height = canvasCfg.windowDim.height;
+    }
+};
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas, false);
 
@@ -85,6 +96,30 @@ class TileSpriteRenderSystem {
             entity.dim.w,
             entity.dim.h
         );
+    }
+}
+
+function drawCircle(pos, radius, color) {
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+class TileCircleRenderSystem {
+    constructor(ctx, radius, color) {
+        this.ctx = ctx;
+        this.radius = radius;
+        this.color = color;
+    }
+
+    handle(entity) {
+        const tileCenter = {
+            x: entity.pos.x + entity.dim.h / 2,
+            y: entity.pos.y + entity.dim.w / 2,
+        };
+
+        drawCircle(tileCenter, this.radius, this.color);
     }
 }
 
@@ -181,8 +216,9 @@ const player = new PlayerEntity(
     new DimensionComponent(playerSpriteMeta.width, playerSpriteMeta.height),
     new VelocityComponent(0, 0),
     // Systems
-    new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta),
-    new ScreenEdgeHandlingSystem(canvas)
+    new ScreenEdgeHandlingSystem(canvas),
+    // new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta)
+    new TileCircleRenderSystem(ctx, 5, 'red')
 );
 const inputHandler = new UserInputMovementSystem(player);
 
