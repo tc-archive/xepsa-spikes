@@ -34,12 +34,17 @@ class PlayerEntity {
     constructor(position, dimension, velocity, screenEdgeHandler, renderer) {
         // Components
         this.pos = position;
+        this.rot = 0;
         this.dim = dimension;
         this.vel = velocity;
         this.speed = 10;
         // Systems
         this.screenEdgeHandler = screenEdgeHandler;
         this.renderer = renderer;
+
+        // const unit = 5;
+        // this.vel.dx = Math.cos(this.rot) * unit;
+        // this.vel.dy = Math.sin(this.rot) * unit;
     }
 
     handle() {
@@ -120,10 +125,24 @@ class TileCircleRenderSystem {
         };
 
         drawCircle(tileCenter, this.radius, this.color);
+
+        const cx = (Math.cos(entity.rot) * entity.dim.h) / 2;
+        const cy = (Math.sin(entity.rot) * entity.dim.w) / 2;
+        ctx.beginPath();
+        ctx.moveTo(tileCenter.x, tileCenter.y);
+        ctx.lineTo(tileCenter.x + cx, tileCenter.y + cy);
+        ctx.strokeStyle = this.color;
+        ctx.stroke();
     }
 }
 
-class UserInputMovementSystem {
+// DiscreteCompass
+// Compass
+// Orientation
+
+const ORIENT = Symbol('Orient');
+
+class CompassMovementSystem {
     constructor(entity) {
         this.entity = entity;
         document.addEventListener('keydown', this.keyDown);
@@ -155,6 +174,70 @@ class UserInputMovementSystem {
             this.moveUp();
         } else if (e.key === 'ArrowDown' || e.key === 'Down') {
             this.moveDown();
+        }
+    };
+
+    keyUp = (e) => {
+        if (
+            e.key == 'Right' ||
+            e.key == 'ArrowRight' ||
+            e.key == 'Left' ||
+            e.key == 'ArrowLeft' ||
+            e.key == 'Up' ||
+            e.key == 'ArrowUp' ||
+            e.key == 'Down' ||
+            e.key == 'ArrowDown'
+        ) {
+            this.entity.vel.dx = 0;
+            this.entity.vel.dy = 0;
+        }
+    };
+}
+
+class OrientationMovementSystem {
+    constructor(entity) {
+        this.entity = entity;
+        document.addEventListener('keydown', this.keyDown);
+        document.addEventListener('keyup', this.keyUp);
+    }
+
+    moveForward() {
+        this.entity.vel.dx = Math.cos(this.entity.rot) * this.entity.speed;
+        this.entity.vel.dy = Math.sin(this.entity.rot) * this.entity.speed;
+        // this.entity.pos.dx = this.entity.vel.dx;
+        // this.entity.pos.dy = this.entity.vel.dy;
+    }
+
+    moveBackward() {
+        this.entity.vel.dx = -Math.cos(this.entity.rot) * this.entity.speed;
+        this.entity.vel.dy = -Math.sin(this.entity.rot) * this.entity.speed;
+        // this.entity.pos.dx = -this.entity.vel.dx;
+        // this.entity.pos.dy = -this.entity.vel.dy;
+    }
+
+    rotateRight() {
+        this.entity.rot += 0.1;
+        if (this.entity.rot >= 2 * Math.PI) {
+            this.entity.rot = 0;
+        }
+    }
+
+    rotateLeft() {
+        this.entity.rot -= 0.1;
+        if (this.entity.rot <= 0) {
+            this.entity.rot = 2 * Math.PI;
+        }
+    }
+
+    keyDown = (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'Right') {
+            this.rotateRight();
+        } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
+            this.rotateLeft();
+        } else if (e.key === 'ArrowUp' || e.key === 'Up') {
+            this.moveForward();
+        } else if (e.key === 'ArrowDown' || e.key === 'Down') {
+            this.moveBackward();
         }
     };
 
@@ -215,12 +298,13 @@ const player = new PlayerEntity(
     new PositionComponent(canvas.width / 2, canvas.height / 2),
     new DimensionComponent(playerSpriteMeta.width, playerSpriteMeta.height),
     new VelocityComponent(0, 0),
-    // Systems
+    // Systems[]
     new ScreenEdgeHandlingSystem(canvas),
-    // new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta)
+    // new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta),
     new TileCircleRenderSystem(ctx, 5, 'red')
 );
-const inputHandler = new UserInputMovementSystem(player);
+// const inputHandler = new CompassMovementSystem(player);
+const inputHandler = new OrientationMovementSystem(player);
 
 // Game Loop ------------------------------------------------------------------
 //
