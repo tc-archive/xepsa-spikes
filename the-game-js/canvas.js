@@ -277,9 +277,72 @@ class ScreenEdgeHandlingSystem {
         if (entity.pos.y < 0) {
             entity.pos.y = 0;
         }
-        // Bottom Wall
+        // Bottom Walls
         if (entity.pos.y + entity.dim.h > canvas.height) {
             entity.pos.y = canvas.height - entity.dim.h;
+        }
+    }
+}
+
+// Map ------------------------------------------------------------------------
+//
+
+class TileMapEntity {
+    constructor(tileMap, renderer) {
+        this.tileMap = tileMap;
+        this.renderer = renderer;
+    }
+
+    handle = () => {
+        this.renderer.handle(this);
+    };
+}
+
+class TileMapComponent {
+    constructor(rows, cols, tileWidth, tileHeight, data) {
+        this.rows = rows;
+        this.cols = cols;
+        this.tileWidth = tileWidth;
+        this.tileHeight = tileHeight;
+        this.data = data;
+    }
+
+    getTile = (x, y) => {
+        return this.data[this.cols * y + x];
+    };
+}
+
+class TileMapRenderSystem {
+    constructor(ctx) {
+        this.ctx = ctx;
+        this.gridLine = 1;
+    }
+
+    handle(entity) {
+        var map = entity.tileMap;
+        var offsetX = canvas.width / 2 - (map.cols * map.tileWidth) / 2;
+        var offsetY = canvas.height / 2 - (map.rows * map.tileHeight) / 2;
+        for (let x = 0; x < map.cols; x++) {
+            for (let y = 0; y < map.rows; y++) {
+                let tile = map.getTile(x, y);
+                if (tile === 0) {
+                    ctx.fillStyle = 'grey';
+                    ctx.fillRect(
+                        offsetX + x * map.tileWidth,
+                        offsetY + y * map.tileHeight,
+                        map.tileWidth - this.gridLine,
+                        map.tileHeight - this.gridLine
+                    );
+                } else {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(
+                        offsetX + x * map.tileWidth,
+                        offsetY + y * map.tileHeight,
+                        map.tileWidth - this.gridLine,
+                        map.tileHeight - this.gridLine
+                    );
+                }
+            }
         }
     }
 }
@@ -303,8 +366,26 @@ const player = new PlayerEntity(
     // new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta),
     new TileCircleRenderSystem(ctx, 5, 'red')
 );
+
 // const inputHandler = new CompassMovementSystem(player);
 const inputHandler = new OrientationMovementSystem(player);
+
+// Map
+//
+
+// prettier-ignore
+const map01 = [
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 0, 1, 0, 0, 0, 0, 1,
+    1, 0, 1, 0, 0, 0, 0, 1,
+    1, 0, 1, 0, 0, 0, 0, 1, 
+    1, 0, 0, 0, 0, 0, 0, 1, 
+    1, 0, 0, 0, 0, 1, 0, 1, 
+    1, 0, 0, 0, 0, 0, 0, 1, 
+    1, 1, 1, 1, 1, 1, 1, 1,
+];
+
+const map = new TileMapEntity(new TileMapComponent(8, 8, 32, 32, map01), new TileMapRenderSystem(ctx));
 
 // Game Loop ------------------------------------------------------------------
 //
@@ -312,6 +393,7 @@ const inputHandler = new OrientationMovementSystem(player);
 function gloop() {
     clear();
 
+    map.handle();
     player.handle();
 
     requestAnimationFrame(gloop);
