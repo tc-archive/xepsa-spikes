@@ -311,8 +311,29 @@ class TileMapComponent {
         this.data = data;
     }
 
-    getTile = (x, y) => {
-        return this.data[this.cols * y + x];
+    getTileData = (x, y, offset) => {
+        let td;
+        const tx = offset ? x + offset?.x : x;
+        const ty = offset ? y + offset?.y : y;
+        if (tx >= 0 && tx < this.cols && ty >= 0 && ty < this.rows) {
+            td = this.data[this.cols * ty + tx];
+        }
+        return td;
+    };
+
+    getTileGeometry = (x, y, offset) => {
+        let geom;
+        const tx = offset ? x + offset?.x : x;
+        const ty = offset ? y + offset?.y : y;
+        if (tx >= 0 && tx < this.cols && ty >= 0 && ty < this.rows) {
+            geom = [];
+            const tl = { x: tx * this.tileWidth, y: ty * this.tileHeight };
+            const tr = { x: tl.x + this.tileWidth, y: tl.y };
+            const br = { x: tl.x + this.tileWidth, y: tl.y + this.tileHeight };
+            const bl = { x: tl.x, y: tl.y + this.tileHeight };
+            geom.push(tl, tr, br, bl);
+        }
+        return geom;
     };
 }
 
@@ -324,12 +345,13 @@ class TileMapRenderSystem {
 
     handle(entity) {
         var map = entity.tileMap;
+        // TODO - Manage pass in offset externally.
         var offsetX = canvas.width / 2 - (map.cols * map.tileWidth) / 2;
         var offsetY = canvas.height / 2 - (map.rows * map.tileHeight) / 2;
-        for (let x = 0; x < map.cols; x++) {
-            for (let y = 0; y < map.rows; y++) {
-                let tile = map.getTile(x, y);
-                if (tile === 0) {
+        for (let y = 0; y < map.rows; y++) {
+            for (let x = 0; x < map.cols; x++) {
+                let data = map.getTileData(x, y);
+                if (data?.block === 0) {
                     ctx.fillStyle = 'grey';
                     ctx.fillRect(
                         offsetX + x * map.tileWidth,
@@ -373,17 +395,28 @@ class EdgeEntity {
     }
 }
 
+// Adding the renderer to the object makes is easier to customise each object.
+
+// We could have a complex renderer with config values and logic based on those
+// values. Alteratively, we could have simple renderers and change what type we
+// assign to the object.
+
 class EdgeRenderSystem {
     constructor(ctx) {
         this.ctx = ctx;
     }
 
     handle(entity) {
+        // Draw Line
         this.ctx.beginPath();
         this.ctx.moveTo(entity.start.x, entity.start.y);
         this.ctx.lineTo(entity.end.x, entity.end.y);
         this.ctx.strokeStyle = 'white';
         this.ctx.stroke();
+
+        // Draw Ends
+        drawCircle(entity.start, 2.5, 'white');
+        drawCircle(entity.end, 2.5, 'white');
     }
 }
 
@@ -411,7 +444,7 @@ function raycast(ray, edge) {
         const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / d;
         // Only consider 'u > 0' as the ray does not extend backwards.
         if (t > 0 && t < 1 && u > 0) {
-            // Use 'p point' solution.
+            // Use 't point' solution.
             const x = x1 + t * (x2 - x1);
             const y = y1 + t * (y2 - y1);
             return { x, y };
@@ -455,18 +488,169 @@ const playerMovementHandler = new OrientationMovementSystem(player);
 //
 
 // prettier-ignore
-const map01 = [
+const blocks01 = [
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 0, 1, 0, 0, 0, 0, 1,
     1, 0, 1, 0, 0, 0, 0, 1,
-    1, 0, 1, 0, 0, 0, 0, 1, 
-    1, 0, 0, 0, 0, 0, 0, 1, 
-    1, 0, 0, 0, 0, 1, 0, 1, 
-    1, 0, 0, 0, 0, 0, 0, 1, 
+    1, 0, 1, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 1, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
 ];
 
+// const blocks01 = [
+//     1, 1, 0, 0, 0, 0, 0, 0,
+//     0, 0, 0, 0, 0, 0, 0, 0,
+//     0, 0, 1, 0, 0, 0, 0, 0,
+//     0, 0, 0, 0, 0, 0, 0, 0,
+//     0, 0, 0, 0, 0, 0, 0, 0,
+//     0, 0, 1, 1, 0, 0, 0, 0,
+//     0, 0, 1, 1, 0, 0, 1, 0,
+//     0, 0, 0, 0, 0, 0, 1, 0,
+//     0, 0, 1, 0, 0, 0, 0, 0
+// ];
+
+// const blocks01 = [
+//     1, 1, 0, 0, 0, 0, 0, 0,
+//     1, 0, 0, 0, 1, 1, 1, 0,
+//     0, 0, 1, 0, 1, 0, 1, 0,
+//     0, 0, 0, 0, 1, 1, 1, 0,
+//     0, 0, 0, 0, 0, 0, 0, 0,
+//     0, 0, 1, 1, 0, 0, 0, 0,
+//     0, 0, 1, 1, 0, 0, 1, 0,
+//     0, 0, 0, 0, 0, 0, 1, 0,
+//     0, 0, 1, 0, 0, 0, 0, 0
+// ];
+
+let idx = -1;
+const map01 = blocks01.map((t) => {
+    idx++;
+    return { block: t, edgeId: [], id: idx };
+});
+
+const NORTH = 0;
+const EAST = 1;
+const SOUTH = 2;
+const WEST = 3;
+
 const map = new TileMapEntity(new TileMapComponent(8, 8, 32, 32, map01), new TileMapRenderSystem(ctx));
+
+// Edges
+//
+const edgeRenderer = new EdgeRenderSystem(ctx);
+
+const randomPoint = () => {
+    return {
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+    };
+};
+
+const edges = [];
+const addBorderEdges = false;
+if (addBorderEdges) {
+    const offset = 10;
+    const p1 = { x: offset, y: offset };
+    const p2 = { x: canvas.width - offset, y: offset };
+    const p3 = { x: canvas.width - offset, y: canvas.height - offset };
+    const p4 = { x: offset, y: canvas.height - offset };
+
+    const e1 = new EdgeEntity(p1, p2, edgeRenderer);
+    const e2 = new EdgeEntity(p2, p3, edgeRenderer);
+    const e3 = new EdgeEntity(p3, p4, edgeRenderer);
+    const e4 = new EdgeEntity(p4, p1, edgeRenderer);
+
+    edges.push(e1, e2, e3, e4);
+}
+
+const addRandomEdges = false;
+if (addRandomEdges) {
+    const e1 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
+    const e2 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
+    const e3 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
+    const e4 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
+    edges.push(e1, e2, e3, e4);
+}
+
+// We could have complex Map cells. Or separate maps that we add together at the end.
+
+const buildEdges = (world) => {
+    const map = world.tileMap;
+    const edges = [];
+    let edgeIdx = 0;
+    for (let y = 0; y < map.rows; y++) {
+        for (let x = 0; x < map.cols; x++) {
+            let tile = map.getTileData(x, y);
+            let geom = map.getTileGeometry(x, y);
+
+            if (tile.block === 1) {
+                let north = map.getTileData(x, y, { x: 0, y: -1 });
+                let east = map.getTileData(x, y, { x: 1, y: 0 });
+                let south = map.getTileData(x, y, { x: 0, y: 1 });
+                let west = map.getTileData(x, y, { x: -1, y: 0 });
+
+                if (!north || north?.block === 0) {
+                    if (west && west?.edgeId[NORTH] != null) {
+                        let edge = edges[west.edgeId[NORTH]];
+                        edge.end = geom[1];
+                        tile.edgeId[NORTH] = west.edgeId[NORTH];
+                    } else {
+                        let edge = new EdgeEntity(geom[0], geom[1], edgeRenderer);
+                        edges[edgeIdx] = edge;
+                        tile.edgeId[NORTH] = edgeIdx;
+                        edgeIdx++;
+                    }
+                }
+
+                if (!east || east?.block === 0) {
+                    if (north && north?.edgeId[EAST] != null) {
+                        let edge = edges[north.edgeId[EAST]];
+                        edge.end = geom[2];
+                        tile.edgeId[EAST] = north.edgeId[EAST];
+                    } else {
+                        let edge = new EdgeEntity(geom[1], geom[2], edgeRenderer);
+                        edges[edgeIdx] = edge;
+                        tile.edgeId[EAST] = edgeIdx;
+                        edgeIdx++;
+                    }
+                }
+
+                if (!south || south?.block === 0) {
+                    if (west && west?.edgeId[SOUTH] != null) {
+                        let edge = edges[west.edgeId[SOUTH]];
+                        edge.end = geom[2];
+                        tile.edgeId[SOUTH] = west.edgeId[SOUTH];
+                    } else {
+                        let edge = new EdgeEntity(geom[3], geom[2], edgeRenderer);
+                        edges[edgeIdx] = edge;
+                        tile.edgeId[SOUTH] = edgeIdx;
+                        edgeIdx++;
+                    }
+                }
+
+                if (!west || west?.block === 0) {
+                    if (north && north?.edgeId[WEST] != null) {
+                        let edge = edges[north.edgeId[WEST]];
+                        edge.end = geom[3];
+                        tile.edgeId[WEST] = north.edgeId[WEST];
+                    } else {
+                        let edge = new EdgeEntity(geom[0], geom[3], edgeRenderer);
+                        edges[edgeIdx] = edge;
+                        tile.edgeId[WEST] = edgeIdx;
+                        edgeIdx++;
+                    }
+                }
+            }
+        }
+    }
+    const result = Array.from(edges.values());
+    return result;
+};
+
+const gridEdges = buildEdges(map);
+console.log('gridEdges: ', gridEdges);
+edges.push(...gridEdges);
 
 // Ray
 //
@@ -495,47 +679,9 @@ class RaycasterRenderSystem {
     }
 
     handle(entity) {
-        drawCircle(entity.pos, this.radius, this.color);
-        drawLine(entity.pos, entity.dir, 'green');
+        // drawCircle(entity.pos, this.radius, this.color);
+        // drawLine(entity.pos, entity.dir, 'green');
     }
-}
-
-// Edges
-//
-const edgeRenderer = new EdgeRenderSystem(ctx);
-
-const randomPoint = () => {
-    return {
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-    };
-};
-
-const edges = [];
-const addBorderEdges = true;
-if (addBorderEdges) {
-    const offset = 10;
-    const p1 = { x: offset, y: offset };
-    const p2 = { x: canvas.width - offset, y: offset };
-    const p3 = { x: canvas.width - offset, y: canvas.height - offset };
-    const p4 = { x: offset, y: canvas.height - offset };
-
-    const e1 = new EdgeEntity(p1, p2, edgeRenderer);
-    const e2 = new EdgeEntity(p2, p3, edgeRenderer);
-    const e3 = new EdgeEntity(p3, p4, edgeRenderer);
-    const e4 = new EdgeEntity(p4, p1, edgeRenderer);
-
-    edges.push(e1, e2, e3, e4);
-}
-
-const addRandomEdges = true;
-if (addRandomEdges) {
-    const e1 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
-    const e2 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
-    const e3 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
-    const e4 = new EdgeEntity(randomPoint(), randomPoint(), edgeRenderer);
-
-    edges.push(e1, e2, e3, e4);
 }
 
 const raycasterRenderer = new RaycasterRenderSystem(ctx, 3, 'green');
@@ -570,10 +716,11 @@ const getMousePos = (canvas, evt) => {
 function gloop() {
     clear();
 
+    // const x = 0;
+    // drawLine({ x: x, y: 0 }, { x: x, y: 500 }, 'yellow');
+
     map.handle();
     player.handle();
-
-    // edge01.handle();
 
     raycaster.handle();
     for (let i = 0; i < edges.length; i++) {
@@ -584,9 +731,31 @@ function gloop() {
         }
     }
 
+    let offsetX = canvas.width / 2 - (map.tileMap.cols * map.tileMap.tileWidth) / 2;
+    let offsetY = canvas.height / 2 - (map.tileMap.rows * map.tileMap.tileHeight) / 2;
+
+    // let g1 = map.tileMap.getTileGeometry(0, 0);
+    // ctx.fillStyle = 'red';
+    // ctx.fillRect(offsetX + g1[0].x, offsetY + g1[0].y, map.tileMap.tileWidth - 1, map.tileMap.tileHeight - 1);
+
+    // let g2 = map.tileMap.getTileGeometry(2, 3);
+    // ctx.fillStyle = 'yellow';
+    // ctx.fillRect(offsetX + g2[0].x, offsetY + g2[0].y, map.tileMap.tileWidth - 1, map.tileMap.tileHeight - 1);
+
+    // let g3 = map.tileMap.getTileGeometry(5, 5);
+    // ctx.fillStyle = 'green';
+    // ctx.fillRect(offsetX + g3[0].x, offsetY + g3[0].y, map.tileMap.tileWidth - 1, map.tileMap.tileHeight - 1);
+
+    // let go1 = map.tileMap.getTileGeometry(5, 5, { x: 0, y: -3 });
+    // ctx.fillStyle = 'blue';
+    // if (go1) {
+    //     ctx.fillRect(offsetX + go1[0].x, offsetY + go1[0].y, map.tileMap.tileWidth - 1, map.tileMap.tileHeight - 1);
+    // }
+
     // drawLine(raycaster.pos, raycaster.dir, 'green');
     // const i = intersect(ray, edge);
     // console.log(`Intersect ${i}`);
+
     requestAnimationFrame(gloop);
 }
 gloop();
