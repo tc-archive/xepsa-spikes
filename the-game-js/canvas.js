@@ -44,26 +44,52 @@ function clear() {
 //
 
 class PlayerEntity {
-    constructor(position, dimension, velocity, screenEdgeHandler, renderer) {
-        // Components
+    constructor(position, dimension, velocity, tileEdgeHandler, screenEdgeHandler, renderer) {
+        // Components - TODO: Lets ue vectors, add accelerations, etc.
         this.pos = position;
         this.rot = (Math.PI * 3) / 2;
         this.dim = dimension;
         this.vel = velocity;
         this.speed = 5;
         // Systems
+        this.tileEdgeHandler = tileEdgeHandler;
         this.screenEdgeHandler = screenEdgeHandler;
         this.renderer = renderer;
-
-        // const unit = 5;
-        // this.vel.dx = Math.cos(this.rot) * unit;
-        // this.vel.dy = Math.sin(this.rot) * unit;
     }
 
+    getCollisionProbe = () => {
+        const cx = Math.cos(this.rot) * this.dim.h;
+        const cy = Math.sin(this.rot) * this.dim.w;
+        const probe = { x: this.pos.x + cx, y: this.pos.y + cy };
+
+        ctx.beginPath();
+        ctx.moveTo(this.pos.x, this.pos.y);
+        ctx.lineTo(probe.x, probe.y);
+        ctx.strokeStyle = this.color;
+        ctx.stroke();
+
+        return probe;
+    };
+
     handle() {
+        // Update
+        // const probe = this.getCollisionProbe();
+        // // const tile = map.tileMap.getTileForPoint(probe);
+        // const tile = map.tileMap.getTileForPoint(this.pos);
+        // if (tile && tile?.block) {
+        //     console.log('HIT WALL!!!!');
+        // } else {
+        //     console.log('FREE!!!!');
+        //     this.pos.x += this.vel.dx;
+        //     this.pos.y += this.vel.dy;
+        // }
         this.pos.x += this.vel.dx;
         this.pos.y += this.vel.dy;
+
+        // Systems
+        this.tileEdgeHandler.handle(this);
         this.screenEdgeHandler.handle(this);
+        // Draw
         this.renderer.handle(this);
     }
 }
@@ -140,18 +166,27 @@ class TileCircleRenderSystem {
     }
 
     handle(entity) {
-        const tileCenter = {
-            x: entity.pos.x + entity.dim.h / 2,
-            y: entity.pos.y + entity.dim.w / 2,
-        };
+        // const tileCenter = {
+        //     x: entity.pos.x + entity.dim.h / 2,
+        //     y: entity.pos.y + entity.dim.w / 2,
+        // };
+        // drawCircle(tileCenter, this.radius, this.color);
+        // const cx = (Math.cos(entity.rot) * entity.dim.h) / 2;
+        // const cy = (Math.sin(entity.rot) * entity.dim.w) / 2;
+        // ctx.beginPath();
+        // ctx.moveTo(tileCenter.x, tileCenter.y);
+        // ctx.lineTo(tileCenter.x + cx, tileCenter.y + cy);
+        // ctx.strokeStyle = this.color;
+        // ctx.stroke();
 
-        drawCircle(tileCenter, this.radius, this.color);
+        drawCircle(entity.pos, this.radius, this.color);
 
-        const cx = (Math.cos(entity.rot) * entity.dim.h) / 2;
-        const cy = (Math.sin(entity.rot) * entity.dim.w) / 2;
+        const cx = Math.cos(entity.rot) * entity.dim.h;
+        const cy = Math.sin(entity.rot) * entity.dim.w;
+
         ctx.beginPath();
-        ctx.moveTo(tileCenter.x, tileCenter.y);
-        ctx.lineTo(tileCenter.x + cx, tileCenter.y + cy);
+        ctx.moveTo(entity.pos.x, entity.pos.y);
+        ctx.lineTo(entity.pos.x + cx, entity.pos.y + cy);
         ctx.strokeStyle = this.color;
         ctx.stroke();
     }
@@ -215,6 +250,7 @@ class CompassMovementSystem {
     };
 }
 
+// TODO: This is is pretty crap and non responsive. Need to make this better. Collision detection no good.
 class OrientationMovementSystem {
     constructor(entity) {
         this.entity = entity;
@@ -223,6 +259,22 @@ class OrientationMovementSystem {
     }
 
     moveForward() {
+        // const probe = this.entity.getCollisionProbe();
+        // const playerTileCoords = map.tileMap.getTileCoords(player.pos);
+        // const probeTileCoords = map.tileMap.getTileCoords(probe);
+        // console.log('Move Forward? playerTileCoords: ', playerTileCoords);
+        // console.log('Move Forward? probeTileCoords: ', probeTileCoords);
+        // const tile = map.tileMap.getTileForPoint(probe);
+        // // const tile = map.tileMap.getTileForPoint(this.entity.pos);
+        // console.log('Move Forward? tile: ', tile?.block);
+        // if (tile) {
+        //     console.log('Move Forward? can: ', tile?.block !== 1);
+        // }
+        // if (tile && tile?.block !== 1) {
+        //     console.log('Move Forward? - Yes!');
+        // } else {
+        //     console.log('Move Forward? - No!');
+        // }
         this.entity.vel.dx = Math.cos(this.entity.rot) * this.entity.speed;
         this.entity.vel.dy = Math.sin(this.entity.rot) * this.entity.speed;
     }
@@ -301,6 +353,24 @@ class ScreenEdgeHandlingSystem {
     }
 }
 
+class MapTileHandlingSystem {
+    constructor(map) {
+        this.map = map;
+    }
+
+    // Entity requires 'location' and 'dimensions'.
+    handle(entity) {
+        // const probe = entity.getCollisionProbe();
+        // // const tile = map.tileMap.getTileForPoint(probe);
+        // const tile = map.tileMap.getTileForPoint(entity.pos);
+        // if (tile && tile?.block) {
+        //     console.log('HIT WALL!!!!');
+        // } else {
+        //     console.log('FREE!!!!');
+        // }
+    }
+}
+
 // Map ------------------------------------------------------------------------
 //
 
@@ -349,6 +419,17 @@ class TileMapComponent {
             geom.push(tl, tr, br, bl);
         }
         return geom;
+    };
+
+    getTileForPoint = (pos) => {
+        const { row, col } = this.getTileCoords(pos);
+        return this.getTileData(row, col);
+    };
+
+    getTileCoords = (pos) => {
+        const row = Math.round((pos.x - this.pos.x) / this.tileWidth);
+        const col = Math.round((pos.y - this.pos.y) / this.tileHeight);
+        return { row: row, col: col };
     };
 }
 
@@ -430,19 +511,19 @@ class EdgeRenderSystem {
 
     handle(entity) {
         if (this?.options?.debug) {
-            const color = this.options.color ? this.options.color : 'red';
-            const size = this.options.color ? this.options.size : 2.5;
+            const color = this?.options?.color ? this?.options?.color : 'red';
+            const size = this?.options?.color ? this?.options?.size : 2.5;
 
             // Draw Line
             this.ctx.beginPath();
             this.ctx.moveTo(entity.start.x, entity.start.y);
             this.ctx.lineTo(entity.end.x, entity.end.y);
-            this.ctx.strokeStyle = this.options.color;
+            this.ctx.strokeStyle = color;
             this.ctx.stroke();
 
             // Draw Ends
-            drawCircle(entity.start, size, this.options.color);
-            drawCircle(entity.end, size, this.options.color);
+            drawCircle(entity.start, size, color);
+            drawCircle(entity.end, size, color);
         }
     }
 }
@@ -493,24 +574,6 @@ function raycast(ray, edge) {
 
 var ctx = canvas.getContext('2d');
 
-// Player
-//
-const sprites = document.getElementById('dungeon-tile-32x32');
-const playerSpriteMeta = { row: 0, col: 4, width: 32, height: 32 };
-const player = new PlayerEntity(
-    // Components
-    new PositionComponent(canvas.width / 2, canvas.height / 2),
-    new DimensionComponent(playerSpriteMeta.width, playerSpriteMeta.height),
-    new VelocityComponent(0, 0),
-    // Systems[]
-    new ScreenEdgeHandlingSystem(canvas),
-    // new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta),
-    new TileCircleRenderSystem(ctx, 5, 'red')
-);
-
-// const inputHandler = new CompassMovementSystem(player);
-const playerMovementHandler = new OrientationMovementSystem(player);
-
 // Map
 //
 
@@ -556,6 +619,7 @@ const mapTileHeight = 32;
 const mapOriginX = canvas.width / 2 - (mapColumns * mapTileWidth) / 2;
 const mapOriginY = canvas.height / 2 - (mapRows * mapTileHeight) / 2;
 const mapOrigin = new PositionComponent(mapOriginX, mapOriginY);
+// const mapOrigin = new PositionComponent(0, 0);
 const map = new TileMapEntity(
     new TileMapComponent(mapOrigin, mapRows, mapColumns, mapTileWidth, mapTileHeight, map01),
     new TileMapRenderSystem(ctx)
@@ -563,7 +627,7 @@ const map = new TileMapEntity(
 
 // Edges
 //
-const edgeRenderer = new EdgeRenderSystem(ctx, { debug: false });
+const edgeRenderer = new EdgeRenderSystem(ctx, { debug: true });
 
 const randomPoint = () => {
     return {
@@ -736,6 +800,28 @@ class RayCasterMouseLookAtSystem {
 }
 const rayMovementHandler = new RayCasterMouseLookAtSystem(raycaster);
 
+// Player
+//
+const collision = new MapTileHandlingSystem(map);
+const sprites = document.getElementById('dungeon-tile-32x32');
+const playerSpriteMeta = { row: 0, col: 4, width: 32, height: 32 };
+const playerBlobMeta = { radius: 5, color: 'red' };
+const player = new PlayerEntity(
+    // Components
+    new PositionComponent(canvas.width / 2, canvas.height / 2),
+    // new DimensionComponent(playerSpriteMeta.width, playerSpriteMeta.height),
+    new DimensionComponent(playerBlobMeta.radius * 2, playerBlobMeta.radius * 2),
+    new VelocityComponent(0, 0),
+    // Systems[]
+    new ScreenEdgeHandlingSystem(canvas),
+    new MapTileHandlingSystem(map),
+    // new TileSpriteRenderSystem(ctx, sprites, playerSpriteMeta),
+    new TileCircleRenderSystem(ctx, playerBlobMeta.radius, playerBlobMeta.color)
+);
+
+// const inputHandler = new CompassMovementSystem(player);
+const playerMovementHandler = new OrientationMovementSystem(player);
+
 const getMousePos = (canvas, evt) => {
     var rect = canvas.getBoundingClientRect();
     return {
@@ -752,15 +838,35 @@ function gloop() {
 
     map.handle();
     player.handle();
-
     raycaster.handle();
+
+    // console.log('player: ', player.pos);
+    // const playerTile = map.tileMap.getTileCoords(player.pos);
+    // console.log(`Current player tile: (${playerTile.row}, ${playerTile.col})`);
+    // const tile = map.tileMap.getTileForPoint(player.pos);
+    // console.log('tile: ', tile);
+
+    const probe = player.getCollisionProbe();
+    drawCircle(probe, 1.5, 'green');
+
+    // console.log('probe: ', probe);
+    // const probeTile = map.tileMap.getTileCoords(probe);
+    // console.log(`Current player probe tile: (${probeTile.row}, ${probeTile.col})`);
+
+    // Edges
+    //
     for (let i = 0; i < edges.length; i++) {
         edges[i].handle();
+        // Raycast intersections
         const hit = raycast(raycaster, edges[i]);
         if (hit) {
             drawCircle(hit, 3, 'pink');
         }
     }
+
+    // Map Cells
+    //
+    // for (let i = 0; i < map.length; i++) {}
 
     // let offsetX = canvas.width / 2 - (map.tileMap.cols * map.tileMap.tileWidth) / 2;
     // let offsetY = canvas.height / 2 - (map.tileMap.rows * map.tileMap.tileHeight) / 2;
